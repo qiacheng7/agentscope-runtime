@@ -1,6 +1,6 @@
 <div align="center">
 
-# AgentScope Runtime v1.0
+# AgentScope Runtime: A Production-grade Runtime for Agent Applications
 
 [![GitHub Repo](https://img.shields.io/badge/GitHub-Repo-black.svg?logo=github)](https://github.com/agentscope-ai/agentscope-runtime)
 [![WebUI](https://img.shields.io/badge/Try_WebUI-Online-green.svg?logo=googlechrome)](http://webui.runtime.agentscope.io/)
@@ -14,7 +14,7 @@
 [![GitHub Forks](https://img.shields.io/github/forks/agentscope-ai/agentscope-runtime?style=flat&logo=github&color=purple&label=Forks)](https://github.com/agentscope-ai/agentscope-runtime/network)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg?logo=githubactions&label=Build)](https://github.com/agentscope-ai/agentscope-runtime/actions)
 [![Cookbook](https://img.shields.io/badge/📚_Cookbook-English|中文-teal.svg)](https://runtime.agentscope.io)
-[![DeepWiki](https://img.shields.io/badge/DeepWiki-agentscope--runtime-navy.svg?logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACwAAAAyCAYAAAAnWDnqAAAAAXNSR0IArs4c6QAAA05JREFUaEPtmUtyEzEQhtWTQyQLHNak2AB7ZnyXZMEjXMGeK/AIi+QuHrMnbChYY7MIh8g01fJoopFb0uhhEqqcbWTp06/uv1saEDv4O3n3dV60RfP947Mm9/SQc0ICFQgzfc4CYZoTPAswgSJCCUJUnAAoRHOAUOcATwbmVLWdGoH//PB8mnKqScAhsD0kYP3j/Yt5LPQe2KvcXmGvRHcDnpxfL2zOYJ1mFwrryWTz0advv1Ut4CJgf5uhDuDj5eUcAUoahrdY/56ebRWeraTjMt/00Sh3UDtjgHtQNHwcRGOC98BJEAEymycmYcWwOprTgcB6VZ5JK5TAJ+fXGLBm3FDAmn6oPPjR4rKCAoJCal2eAiQp2x0vxTPB3ALO2CRkwmDy5WohzBDwSEFKRwPbknEggCPB/imwrycgxX2NzoMCHhPkDwqYMr9tRcP5qNrMZHkVnOjRMWwLCcr8ohBVb1OMjxLwGCvjTikrsBOiA6fNyCrm8V1rP93iVPpwaE+gO0SsWmPiXB+jikdf6SizrT5qKasx5j8ABbHpFTx+vFXp9EnYQmLx02h1QTTrl6eDqxLnGjporxl3NL3agEvXdT0WmEost648sQOYAeJS9Q7bfUVoMGnjo4AZdUMQku50McDcMWcBPvr0SzbTAFDfvJqwLzgxwATnCgnp4wDl6Aa+Ax283gghmj+vj7feE2KBBRMW3FzOpLOADl0Isb5587h/U4gGvkt5v60Z1VLG8BhYjbzRwyQZemwAd6cCR5/XFWLYZRIMpX39AR0tjaGGiGzLVyhse5C9RKC6ai42ppWPKiBagOvaYk8lO7DajerabOZP46Lby5wKjw1HCRx7p9sVMOWGzb/vA1hwiWc6jm3MvQDTogQkiqIhJV0nBQBTU+3okKCFDy9WwferkHjtxib7t3xIUQtHxnIwtx4mpg26/HfwVNVDb4oI9RHmx5WGelRVlrtiw43zboCLaxv46AZeB3IlTkwouebTr1y2NjSpHz68WNFjHvupy3q8TFn3Hos2IAk4Ju5dCo8B3wP7VPr/FGaKiG+T+v+TQqIrOqMTL1VdWV1DdmcbO8KXBz6esmYWYKPwDL5b5FA1a0hwapHiom0r/cKaoqr+27/XcrS5UwSMbQAAAABJRU5ErkJggg==)](https://deepwiki.com/agentscope-ai/agentscope-runtime)
+[![DeepWiki](https://img.shields.io/badge/DeepWiki-Ask_Devin-navy.svg?logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACwAAAAyCAYAAAAnWDnqAAAAAXNSR0IArs4c6QAAA05JREFUaEPtmUtyEzEQhtWTQyQLHNak2AB7ZnyXZMEjXMGeK/AIi+QuHrMnbChYY7MIh8g01fJoopFb0uhhEqqcbWTp06/uv1saEDv4O3n3dV60RfP947Mm9/SQc0ICFQgzfc4CYZoTPAswgSJCCUJUnAAoRHOAUOcATwbmVLWdGoH//PB8mnKqScAhsD0kYP3j/Yt5LPQe2KvcXmGvRHcDnpxfL2zOYJ1mFwrryWTz0advv1Ut4CJgf5uhDuDj5eUcAUoahrdY/56ebRWeraTjMt/00Sh3UDtjgHtQNHwcRGOC98BJEAEymycmYcWwOprTgcB6VZ5JK5TAJ+fXGLBm3FDAmn6oPPjR4rKCAoJCal2eAiQp2x0vxTPB3ALO2CRkwmDy5WohzBDwSEFKRwPbknEggCPB/imwrycgxX2NzoMCHhPkDwqYMr9tRcP5qNrMZHkVnOjRMWwLCcr8ohBVb1OMjxLwGCvjTikrsBOiA6fNyCrm8V1rP93iVPpwaE+gO0SsWmPiXB+jikdf6SizrT5qKasx5j8ABbHpFTx+vFXp9EnYQmLx02h1QTTrl6eDqxLnGjporxl3NL3agEvXdT0WmEost648sQOYAeJS9Q7bfUVoMGnjo4AZdUMQku50McDcMWcBPvr0SzbTAFDfvJqwLzgxwATnCgnp4wDl6Aa+Ax283gghmj+vj7feE2KBBRMW3FzOpLOADl0Isb5587h/U4gGvkt5v60Z1VLG8BhYjbzRwyQZemwAd6cCR5/XFWLYZRIMpX39AR0tjaGGiGzLVyhse5C9RKC6ai42ppWPKiBagOvaYk8lO7DajerabOZP46Lby5wKjw1HCRx7p9sVMOWGzb/vA1hwiWc6jm3MvQDTogQkiqIhJV0nBQBTU+3okKCFDy9WwferkHjtxib7t3xIUQtHxnIwtx4mpg26/HfwVNVDb4oI9RHmx5WGelRVlrtiw43zboCLaxv46AZeB3IlTkwouebTr1y2NjSpHz68WNFjHvupy3q8TFn3Hos2IAk4Ju5dCo8B3wP7VPr/FGaKiG+T+v+TQqIrOqMTL1VdWV1DdmcbO8KXBz6esmYWYKPwDL5b5FA1a0hwapHiom0r/cKaoqr+27/XcrS5UwSMbQAAAABJRU5ErkJggg==)](https://deepwiki.com/agentscope-ai/agentscope-runtime)
 [![A2A](https://img.shields.io/badge/A2A-Agent_to_Agent-blue.svg?label=A2A)](https://a2a-protocol.org/)
 [![MCP](https://img.shields.io/badge/MCP-Model_Context_Protocol-purple.svg?logo=plug&label=MCP)](https://modelcontextprotocol.io/)
 [![Discord](https://img.shields.io/badge/Discord-Join_Us-blueviolet.svg?logo=discord)](https://discord.gg/eYMpfnkG8h)
@@ -25,13 +25,53 @@
 [[中文README]](README_zh.md)
 [[Samples]](https://github.com/agentscope-ai/agentscope-samples)
 
-**A Production-Ready Runtime Framework for Intelligent Agent Applications**
-
-***AgentScope Runtime** is a full-stack agent runtime that tackles two core challenges: **efficient agent deployment** and **secure sandbox execution**. It ships with foundational services such as short- and long-term memory plus agent state persistence, along with hardened sandbox infrastructure. Whether you need to orchestrate production-grade agents or guarantee safe tool interactions, AgentScope Runtime provides developer-friendly workflows with complete observability.*
-
-*In V1.0, these services are exposed via an **adapter pattern**, enabling seamless integration with the native modules of different agent frameworks while preserving their native interfaces and behaviors, ensuring both compatibility and flexibility.*
+> **Core capabilities:**
+>
+> **Tool Sandboxing** — tool call runs inside a **hardened sandbox**
+>
+> **Agent-as-a-Service (AaaS) APIs** — expose agents as **streaming, production-ready APIs**
+>
+> **Scalable Deployment** — deploy locally, on Kubernetes, or serverless for **elastic scale**
+>
+> <details>
+> <summary><b>Plus</b></summary>
+>
+> <br>
+>
+> **Full-stack observability** (logs / traces)
+>
+> **Framework compatibility** with mainstream agent frameworks
+>
+> </details>
 
 </div>
+
+---
+
+## Table of Contents
+
+> [!NOTE]
+>
+> **Recommended reading order:**
+>
+> - **I want to run an agent app in 5 minutes**: Quick Start (Agent App example) → verify with curl (SSE streaming)
+> - **I care about secure tool execution / automation**: Quick Start (Sandbox examples) → sandbox image registry/namespace/tag configuration → (optional) production-grade serverless sandbox deployment
+> - **I want production deployment / expose APIs**: Quick Start (Agent App example) → Quick Start (Deployment example) → Guides
+> - **I want to contribute**: Contributing → Contact
+
+- [News](#-news)
+- [Key Features](#-key-features)
+- [Quick Start](#-quick-start): From installation to running a minimal Agent API service. Learn the three-stage `AgentApp` development pattern: `init` / `query` / `shutdown`.
+  - [Prerequisites](#prerequisites): Required runtime environment and dependencies
+  - [Installation](#installation): Install from PyPI or from source
+  - [Agent App Example](#agent-app-example): How to build a streaming (SSE) Agent-as-a-Service API
+  - [Sandbox Example](#sandbox-example): How to safely execute Python/Shell/GUI/Browser/Filesystem/Mobile tools in an isolated sandbox
+  - [Deployment Example](#deployment-example): Learn to deploy with `DeployManager` locally or in a serverless environment, and access the service via A2A, Response API, or the OpenAI SDK in compatible mode
+- [Guides](#-guides): A tutorial site covering AgentScope Runtime concepts, architecture, APIs, and sample projects—helping you move from “it runs” to “scalable and maintainable”.
+- [Contact](#-contact)
+- [Contributing](#-contributing)
+- [License](#-license)
+- [Contributors](#-contributors)
 
 ---
 
@@ -44,12 +84,12 @@
 
 ## ✨ Key Features
 
-- **🏗️ Deployment Infrastructure**: Built-in services for agent state management, conversation history, long-term memory, and sandbox lifecycle control
-- **🔧 Framework-Agnostic**: Not tied to any specific agent framework; seamlessly integrates with popular open-source and custom implementations
-- ⚡ **Developer-Friendly**: Offers `AgentApp` for easy deployment with powerful customization options
-- **📊 Observability**: Comprehensive tracking and monitoring of runtime operations
-- **🔒 Sandboxed Tool Execution**: Isolated sandbox ensures safe tool execution without affecting the system
-- **🛠️ Out-of-the-Box Tools & One-Click Adaptation**: Rich set of ready-to-use tools, with adapters enabling quick integration into different frameworks
+- **Deployment Infrastructure**: Built-in services for agent state management, conversation history, long-term memory, and sandbox lifecycle control
+- **Framework-Agnostic**: Not tied to any specific agent framework; seamlessly integrates with popular open-source and custom implementations
+- **Developer-Friendly**: Offers `AgentApp` for easy deployment with powerful customization options
+- **Observability**: Comprehensive tracking and monitoring of runtime operations
+- **Sandboxed Tool Execution**: Isolated sandbox ensures safe tool execution without affecting the system
+- **Out-of-the-Box Tools & One-Click Adaptation**: Rich set of ready-to-use tools, with adapters enabling quick integration into different frameworks
 
 > [!NOTE]
 >
@@ -62,26 +102,6 @@
 > | [Microsoft Agent Framework](https://runtime.agentscope.io/en/ms_agent_framework_guidelines.html) | ✅             | ✅    | 🚧       |
 > | [Agno](https://runtime.agentscope.io/en/agno_guidelines.html) | ✅             | ✅    | 🚧       |
 > | AutoGen                                                      | 🚧             | ✅    | 🚧       |
-
----
-
-## 💬 Contact
-
-Welcome to join our community on
-
-| [Discord](https://discord.gg/eYMpfnkG8h)                     | DingTalk                                                     |
-| ------------------------------------------------------------ | ------------------------------------------------------------ |
-| <img src="https://gw.alicdn.com/imgextra/i1/O1CN01hhD1mu1Dd3BWVUvxN_!!6000000000238-2-tps-400-400.png" width="100" height="100"> | <img src="https://img.alicdn.com/imgextra/i4/O1CN014mhqFq1ZlgNuYjxrz_!!6000000003235-2-tps-400-400.png" width="100" height="100"> |
-
----
-
-## 📋 Table of Contents
-
-- [🚀 Quick Start](#-quick-start)
-- [📚 Cookbook](#-cookbook)
-- [🏗️ Deployment](#️-deployment)
-- [🤝 Contributing](#-contributing)
-- [📄 License](#-license)
 
 ---
 
@@ -134,17 +154,13 @@ from agentscope.model import DashScopeChatModel
 from agentscope.formatter import DashScopeChatFormatter
 from agentscope.tool import Toolkit, execute_python_code
 from agentscope.pipeline import stream_printing_messages
+from agentscope.memory import InMemoryMemory
 
 from agentscope_runtime.engine import AgentApp
 from agentscope_runtime.engine.schemas.agent_schemas import AgentRequest
-from agentscope_runtime.adapters.agentscope.memory import (
-    AgentScopeSessionHistoryMemory,
-)
+
 from agentscope_runtime.engine.services.agent_state import (
     InMemoryStateService,
-)
-from agentscope_runtime.engine.services.session_history import (
-    InMemorySessionHistoryService,
 )
 
 agent_app = AgentApp(
@@ -156,16 +172,13 @@ agent_app = AgentApp(
 @agent_app.init
 async def init_func(self):
     self.state_service = InMemoryStateService()
-    self.session_service = InMemorySessionHistoryService()
 
     await self.state_service.start()
-    await self.session_service.start()
 
 
 @agent_app.shutdown
 async def shutdown_func(self):
     await self.state_service.stop()
-    await self.session_service.stop()
 
 
 @agent_app.query(framework="agentscope")
@@ -195,11 +208,7 @@ async def query_func(
         ),
         sys_prompt="You're a helpful assistant named Friday.",
         toolkit=toolkit,
-        memory=AgentScopeSessionHistoryMemory(
-            service=self.session_service,
-            session_id=session_id,
-            user_id=user_id,
-        ),
+        memory=InMemoryMemory(),
         formatter=DashScopeChatFormatter(),
     )
     agent.set_console_output_enabled(enabled=False)
@@ -261,9 +270,9 @@ These examples demonstrate how to create sandboxed environments and execute tool
 
 > [!NOTE]
 >
-> If you want to run the sandbox locally, the current version requires Docker or Kubernetes to be installed and running. In the future, we will offer more public cloud deployment options, as well as other virtualization technologies. Please refer to [this tutorial](https://runtime.agentscope.io/en/sandbox.html) for more details.
+> If you want to run the sandbox locally, the current version supports **Docker (optionally with gVisor)** or **[BoxLite](https://github.com/boxlite-ai/boxlite)** as the backend, and you can switch the backend by setting the environment variable `CONTAINER_DEPLOYMENT` (supported values include `docker` / `gvisor` / `boxlite` etc.; default: `docker`).
 >
-> If you plan to use the sandbox on a large scale in production, we recommend deploying it directly in Alibaba Cloud for managed hosting: [One-click deploy sandbox on Alibaba Cloud](https://computenest.console.aliyun.com/service/instance/create/default?ServiceName=AgentScope%20Runtime%20%E6%B2%99%E7%AE%B1%E7%8E%AF%E5%A2%83)
+> For large-scale remote/production deployments, we recommend using **Kubernetes (K8s)**, **Function Compute (FC)**, or [**Alibaba Cloud Container Service for Kubernetes (ACK)**](https://computenest.console.aliyun.com/service/instance/create/default?ServiceName=AgentScope%20Runtime%20%E6%B2%99%E7%AE%B1%E7%8E%AF%E5%A2%83) as the backend. Please refer to [this tutorial](https://runtime.agentscope.io/en/sandbox/advanced.html) for more details.
 
 > [!TIP]
 > AgentScope Runtime provides **both synchronous** and **asynchronous** versions for each sandbox type
@@ -298,7 +307,7 @@ from agentscope_runtime.sandbox import BaseSandboxAsync
 
 async with BaseSandboxAsync() as box:
     # Default image is `agentscope/runtime-sandbox-base:latest`
-    print(await box.list_tools())  # List all available tools
+    print(await box.list_tools_async())  # List all available tools
     print(await box.run_ipython_cell(code="print('hi')"))  # Run Python code
     print(await box.run_shell_command(command="echo hello"))  # Run shell command
     input("Press Enter to continue...")
@@ -327,7 +336,7 @@ from agentscope_runtime.sandbox import GuiSandboxAsync
 
 async with GuiSandboxAsync() as box:
     # Default image is `agentscope/runtime-sandbox-gui:latest`
-    print(await box.list_tools())  # List all available tools
+    print(await box.list_tools_async())  # List all available tools
     print(box.desktop_url)  # Web desktop access URL
     print(await box.computer_use(action="get_cursor_position"))  # Get mouse cursor position
     print(await box.computer_use(action="get_screenshot"))  # Capture screenshot
@@ -356,7 +365,7 @@ from agentscope_runtime.sandbox import BrowserSandboxAsync
 
 async with BrowserSandboxAsync() as box:
     # Default image is `agentscope/runtime-sandbox-browser:latest`
-    print(await box.list_tools())  # List all available tools
+    print(await box.list_tools_async())  # List all available tools
     print(box.desktop_url)  # Web desktop access URL
     await box.browser_navigate("https://www.google.com/")  # Open a webpage
     input("Press Enter to continue...")
@@ -370,23 +379,23 @@ A GUI-based sandbox with **file system operations** such as creating, reading, a
 
 ```python
 # --- Synchronous version ---
-from agentscope_runtime.sandbox import BrowserSandbox
+from agentscope_runtime.sandbox import FilesystemSandbox
 
-with BrowserSandbox() as box:
-    # By default, pulls `agentscope/runtime-sandbox-browser:latest` from DockerHub
+with FilesystemSandbox() as box:
+    # By default, pulls `agentscope/runtime-sandbox-filesystem:latest` from DockerHub
     print(box.list_tools())  # List all available tools
     print(box.desktop_url)  # Web desktop access URL
-    box.browser_navigate("https://www.google.com/")  # Open a webpage
+    box.create_directory("test")  # Create a directory
     input("Press Enter to continue...")
 
 # --- Asynchronous version ---
-from agentscope_runtime.sandbox import BrowserSandboxAsync
+from agentscope_runtime.sandbox import FilesystemSandboxAsync
 
-async with BrowserSandboxAsync() as box:
-    # Default image is `agentscope/runtime-sandbox-browser:latest`
-    print(await box.list_tools())  # List all available tools
+async with FilesystemSandboxAsync() as box:
+    # Default image is `agentscope/runtime-sandbox-filesystem:latest`
+    print(await box.list_tools_async())  # List all available tools
     print(box.desktop_url)  # Web desktop access URL
-    await box.browser_navigate("https://www.google.com/")  # Open a webpage
+    await box.create_directory("test")  # Create a directory
     input("Press Enter to continue...")
 ```
 
@@ -430,7 +439,7 @@ from agentscope_runtime.sandbox import MobileSandboxAsync
 
 async with MobileSandboxAsync() as box:
     # Default image is 'agentscope/runtime-sandbox-mobile:latest'
-    print(await box.list_tools())  # List all available tools
+    print(await box.list_tools_async())  # List all available tools
     print(await box.mobile_get_screen_resolution())  # Get the screen resolution
     print(await box.mobile_tap([500, 1000]))  # Tap at coordinate (500, 1000)
     print(await box.mobile_input_text("Hello from AgentScope!"))  # Input text
@@ -521,17 +530,7 @@ runtime-sandbox-server --config fc.env
 ```
 After the server starts, you can access the sandbox server at baseurl `http://localhost:8000` and invoke sandbox tools described above.
 
-## 📚 Cookbook
-
-- **[📖 Cookbook](https://runtime.agentscope.io/en/intro.html)**: Comprehensive tutorials
-- **[💡 Concept](https://runtime.agentscope.io/en/concept.html)**: Core concepts and architecture overview
-- **[🚀 Quick Start](https://runtime.agentscope.io/en/quickstart.html)**: Quick start tutorial
-- **[🏠 Demo House](https://runtime.agentscope.io/en/demohouse.html)**: Rich example projects
-- **[📋 API Reference](https://runtime.agentscope.io/en/api/index.html)**: Complete API documentation
-
----
-
-## 🏗️ Deployment
+### Deployment Example
 
 The `AgentApp` exposes a `deploy` method that takes a `DeployManager` instance and deploys the agent.
 
@@ -540,7 +539,7 @@ The `AgentApp` exposes a `deploy` method that takes a `DeployManager` instance a
 
 * The deployer will automatically add common agent protocols, such as **A2A**, **Response API**.
 
-After deployment, users can access the service at `http://localhost:8090/process:
+After deployment, users can access the service at http://localhost:8090/process:
 
 ```python
 from agentscope_runtime.engine.deployers import LocalDeployManager
@@ -552,8 +551,10 @@ deployer = LocalDeployManager(
 )
 
 # Deploy the app as a streaming service
-deploy_result = await app.deploy(deployer=deployer)
-
+deploy_result = await app.deploy(
+    deployer=deployer,
+    endpoint_path="/process"
+)
 ```
 
 After deployment, users can also access this service using the Response API of the OpenAI SDK:
@@ -561,7 +562,7 @@ After deployment, users can also access this service using the Response API of t
 ```python
 from openai import OpenAI
 
-client = OpenAI(base_url="http://0.0.0.0:8090/compatible-mode/v1")
+client = OpenAI(base_url="http://localhost:8090/compatible-mode/v1")
 
 response = client.responses.create(
   model="any_name",
@@ -571,11 +572,16 @@ response = client.responses.create(
 print(response)
 ```
 
-Besides, `DeployManager` also supports serverless deployments, such as deploying your agent app
-to [ModelStudio](https://bailian.console.aliyun.com/?admin=1&tab=doc#/doc/?type=app&url=2983030).
+Besides, `DeployManager` also supports serverless deployments, such as deploying your agent app to [ModelStudio](https://bailian.console.aliyun.com/?admin=1&tab=doc#/doc/?type=app&url=2983030).
 
 ```python
-from agentscope_runtime.engine.deployers import ModelStudioDeployManager
+import os
+from agentscope_runtime.engine.deployers.modelstudio_deployer import (
+    ModelstudioDeployManager,
+    OSSConfig,
+    ModelstudioConfig,
+)
+
 # Create deployment manager
 deployer = ModelstudioDeployManager(
     oss_config=OSSConfig(
@@ -604,6 +610,22 @@ result = await app.deploy(
 ```
 
 For more advanced serverless deployment guides, please refer to the [documentation](https://runtime.agentscope.io/en/advanced_deployment.html#method-4-modelstudio-deployment).
+
+---
+
+## 📚 Guides
+
+For a more detailed tutorial, please refer to: [![Cookbook](https://img.shields.io/badge/📚_Cookbook-English|中文-teal.svg)](https://runtime.agentscope.io)
+
+---
+
+## 💬 Contact
+
+Welcome to join our community on
+
+| [Discord](https://discord.gg/eYMpfnkG8h)                     | DingTalk                                                     |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| <img src="https://gw.alicdn.com/imgextra/i1/O1CN01hhD1mu1Dd3BWVUvxN_!!6000000000238-2-tps-400-400.png" width="100" height="100"> | <img src="https://img.alicdn.com/imgextra/i4/O1CN014mhqFq1ZlgNuYjxrz_!!6000000003235-2-tps-400-400.png" width="100" height="100"> |
 
 ---
 
@@ -652,9 +674,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-## Contributors ✨
+## ✨ Contributors
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-31-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-34-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/emoji-key/)):
@@ -704,6 +726,9 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/e
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/RTsama"><img src="https://avatars.githubusercontent.com/u/100779257?v=4?s=100" width="100px;" alt="RTsama"/><br /><sub><b>RTsama</b></sub></a><br /><a href="https://github.com/agentscope-ai/agentscope-runtime/issues?q=author%3ARTsama" title="Bug reports">🐛</a> <a href="https://github.com/agentscope-ai/agentscope-runtime/commits?author=RTsama" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://allenli178.top"><img src="https://avatars.githubusercontent.com/u/53218750?v=4?s=100" width="100px;" alt="YuYan"/><br /><sub><b>YuYan</b></sub></a><br /><a href="https://github.com/agentscope-ai/agentscope-runtime/commits?author=allenli178" title="Documentation">📖</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/rlp2006"><img src="https://avatars.githubusercontent.com/u/212365247?v=4?s=100" width="100px;" alt="Li Peng (Yuan Yi)"/><br /><sub><b>Li Peng (Yuan Yi)</b></sub></a><br /><a href="https://github.com/agentscope-ai/agentscope-runtime/commits?author=rlp2006" title="Code">💻</a> <a href="https://github.com/agentscope-ai/agentscope-runtime/commits?author=rlp2006" title="Documentation">📖</a> <a href="#example-rlp2006" title="Examples">💡</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://dorianzheng.github.io"><img src="https://avatars.githubusercontent.com/u/8065637?v=4?s=100" width="100px;" alt="dorianzheng"/><br /><sub><b>dorianzheng</b></sub></a><br /><a href="https://github.com/agentscope-ai/agentscope-runtime/pulls?q=is%3Apr+reviewed-by%3ADorianZheng" title="Reviewed Pull Requests">👀</a> <a href="#platform-DorianZheng" title="Packaging/porting to new platform">📦</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/cainiao1992"><img src="https://avatars.githubusercontent.com/u/18435004?v=4?s=100" width="100px;" alt="Xiangfang Chen"/><br /><sub><b>Xiangfang Chen</b></sub></a><br /><a href="https://github.com/agentscope-ai/agentscope-runtime/commits?author=cainiao1992" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Eggiverse"><img src="https://avatars.githubusercontent.com/u/36877740?v=4?s=100" width="100px;" alt="Zhang Shitian"/><br /><sub><b>Zhang Shitian</b></sub></a><br /><a href="https://github.com/agentscope-ai/agentscope-runtime/issues?q=author%3AEggiverse" title="Bug reports">🐛</a> <a href="https://github.com/agentscope-ai/agentscope-runtime/commits?author=Eggiverse" title="Code">💻</a></td>
     </tr>
   </tbody>
   <tfoot>

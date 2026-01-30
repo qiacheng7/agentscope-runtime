@@ -2,10 +2,12 @@
 # pylint: disable=redefined-outer-name, protected-access
 # pylint: disable=too-many-branches, too-many-statements
 # pylint: disable=redefined-outer-name, protected-access, too-many-branches
-# pylint: disable=too-many-public-methods
+# pylint: disable=too-many-public-methods, unused-argument
 import asyncio
 import inspect
 import json
+import time
+import threading
 import logging
 import os
 import secrets
@@ -17,6 +19,8 @@ import requests
 import shortuuid
 import httpx
 
+from .heartbeat_mixin import HeartbeatMixin, touch_session
+from ..constant import TIMEOUT
 from ..client import (
     SandboxHttpClient,
     TrainingSandboxClient,
@@ -29,6 +33,7 @@ from ..manager.storage import (
 )
 from ..model import (
     ContainerModel,
+    ContainerState,
     SandboxManagerEnvConfig,
 )
 from ..registry import SandboxRegistry
@@ -39,9 +44,7 @@ from ...common.collections import (
     InMemoryQueue,
 )
 from ...common.container_clients import ContainerClientFactory
-from ..constant import TIMEOUT
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -130,7 +133,7 @@ def remote_wrapper_async(
     return decorator
 
 
-class SandboxManager:
+class SandboxManager(HeartbeatMixin):
     def __init__(
         self,
         config: Optional[SandboxManagerEnvConfig] = None,
@@ -192,9 +195,7 @@ class SandboxManager:
         self.prefix = self.config.container_prefix_key
         self.default_mount_dir = self.config.default_mount_dir
         self.readonly_mounts = self.config.readonly_mounts
-        self.storage_folder = (
-            self.config.storage_folder or self.default_mount_dir
-        )
+        self.storage_folder = self.config.storage_folder
 
         self.pool_queues = {}
         if self.config.redis_enabled:
@@ -208,24 +209,26 @@ class SandboxManager:
                 password=self.config.redis_password,
                 decode_responses=True,
             )
+            self.redis_client = redis_client
             try:
-                redis_client.ping()
+                self.redis_client.ping()
             except ConnectionError as e:
                 raise RuntimeError(
                     "Unable to connect to the Redis server.",
                 ) from e
 
-            self.container_mapping = RedisMapping(redis_client)
+            self.container_mapping = RedisMapping(self.redis_client)
             self.session_mapping = RedisMapping(
-                redis_client,
+                self.redis_client,
                 prefix="session_mapping",
             )
 
             # Init multi sand box pool
             for t in self.default_type:
                 queue_key = f"{self.config.redis_container_pool_key}:{t.value}"
-                self.pool_queues[t] = RedisQueue(redis_client, queue_key)
+                self.pool_queues[t] = RedisQueue(self.redis_client, queue_key)
         else:
+            self.redis_client = None
             self.container_mapping = InMemoryMapping()
             self.session_mapping = InMemoryMapping()
 
@@ -254,8 +257,9 @@ class SandboxManager:
         else:
             self.storage = LocalStorage()
 
-        if self.pool_size > 0:
-            self._init_container_pool()
+        self._watcher_stop_event = threading.Event()
+        self._watcher_thread = None
+        self._watcher_thread_lock = threading.Lock()
 
         logger.debug(str(config))
 
@@ -264,12 +268,18 @@ class SandboxManager:
             "Entering SandboxManager context (sync). "
             "Cleanup will be performed automatically on exit.",
         )
+        # local mode: watcher starts
+        if self.http_session is None:
+            self.start_watcher()
+
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         logger.debug(
             "Exiting SandboxManager context (sync). Cleaning up resources.",
         )
+        self.stop_watcher()
+
         self.cleanup()
 
         if self.http_session:
@@ -295,12 +305,18 @@ class SandboxManager:
             "Entering SandboxManager context (async). "
             "Cleanup will be performed automatically on async exit.",
         )
+        # local mode: watcher starts
+        if self.http_session is None:
+            self.start_watcher()
+
         return self
 
     async def __aexit__(self, exc_type, exc_value, tb):
         logger.debug(
             "Exiting SandboxManager context (async). Cleaning up resources.",
         )
+        self.stop_watcher()
+
         await self.cleanup_async()
 
         if self.http_session:
@@ -318,6 +334,7 @@ class SandboxManager:
                 logger.warning(f"Error closing httpx_client: {e}")
 
     def _generate_container_key(self, session_id):
+        # TODO: refactor this and mapping, use sandbox_id as identity
         return f"{self.prefix}{session_id}"
 
     def _make_request(self, method: str, endpoint: str, data: dict):
@@ -420,68 +437,140 @@ class SandboxManager:
 
         return response.json()
 
-    def _init_container_pool(self):
+    def start_watcher(self) -> bool:
         """
-        Init runtime pool
+        Start background heartbeat scanning thread.
+        Default: not started automatically. Caller must invoke explicitly.
+        If watcher_scan_interval == 0 => disabled, returns False.
         """
-        for t in self.default_type:
-            queue = self.pool_queues[t]
-            while queue.size() < self.pool_size:
-                try:
-                    container_name = self.create(sandbox_type=t.value)
-                    container_model = self.container_mapping.get(
-                        container_name,
-                    )
-                    if container_model:
-                        # Check the pool size again to avoid race condition
-                        if queue.size() < self.pool_size:
-                            queue.enqueue(container_model)
-                        else:
-                            # The pool size has reached the limit
-                            self.release(container_name)
-                            break
-                    else:
-                        logger.error("Failed to create container for pool")
-                        break
-                except Exception as e:
-                    logger.error(f"Error initializing runtime pool: {e}")
-                    break
+        interval = int(self.config.watcher_scan_interval)
+        if interval <= 0:
+            logger.info(
+                "Watcher disabled (watcher_scan_interval <= 0)",
+            )
+            return False
+
+        with self._watcher_thread_lock:
+            if self._watcher_thread and self._watcher_thread.is_alive():
+                return True  # already running
+
+            self._watcher_stop_event.clear()
+
+            def _loop():
+                logger.info(f"Watcher started, interval={interval}s")
+                while not self._watcher_stop_event.is_set():
+                    try:
+                        hb = self.scan_heartbeat_once()
+                        pool = self.scan_pool_once()
+                        gc = self.scan_released_cleanup_once()
+
+                        logger.debug(
+                            "watcher metrics: "
+                            f"heartbeat={hb}, pool={pool}, released_gc={gc}",
+                        )
+                    except Exception as e:
+                        logger.warning(f"Watcher loop error: {e}")
+                        logger.debug(traceback.format_exc())
+
+                    # wait with stop support
+                    self._watcher_stop_event.wait(interval)
+
+                logger.info("Watcher stopped")
+
+            t = threading.Thread(
+                target=_loop,
+                name="watcher",
+                daemon=True,
+            )
+            self._watcher_thread = t
+            t.start()
+            return True
+
+    def stop_watcher(self, join_timeout: float = 5.0) -> None:
+        """
+        Stop background watcher thread (if running).
+        """
+        with self._watcher_thread_lock:
+            self._watcher_stop_event.set()
+            t = self._watcher_thread
+
+        if t and t.is_alive():
+            t.join(timeout=join_timeout)
+
+        with self._watcher_thread_lock:
+            if self._watcher_thread is t:
+                self._watcher_thread = None
 
     @remote_wrapper()
     def cleanup(self):
-        logger.debug(
-            "Cleaning up resources.",
-        )
+        """
+        Destroy all non-terminal containers managed by this SandboxManager.
 
-        # Clean up pool first
+        Behavior (local mode):
+        - Dequeues and destroys containers from the warm pool (WARM/RUNNING).
+        - Scans container_mapping and destroys any remaining non-terminal
+            containers.
+        - Does NOT delete ContainerModel records from container_mapping;
+            instead it relies on release() to mark them as terminal (RELEASED).
+        - Skips containers already in terminal states: RELEASED / RECYCLED.
+
+        Notes:
+        - Uses container_name as identity to avoid ambiguity with session_id.
+        - Pool containers (WARM) are also destroyed (per current policy).
+        """
+        logger.debug("Cleaning up resources.")
+
+        # Clean up pool first (destroy warm/running containers; skip
+        # terminal states)
         for queue in self.pool_queues.values():
             try:
                 while queue.size() > 0:
                     container_json = queue.dequeue()
-                    if container_json:
-                        container_model = ContainerModel(**container_json)
-                        logger.debug(
-                            f"Destroy container"
-                            f" {container_model.container_id}",
-                        )
-                        self.release(container_model.session_id)
+                    if not container_json:
+                        continue
+
+                    container_model = ContainerModel(**container_json)
+
+                    # Terminal states: already cleaned logically
+                    if container_model.state in (
+                        ContainerState.RELEASED,
+                        ContainerState.RECYCLED,
+                    ):
+                        continue
+
+                    logger.debug(
+                        f"Destroy pool container"
+                        f" {container_model.container_id} "
+                        f"({container_model.container_name})",
+                    )
+                    # Use container_name to avoid ambiguity
+                    self.release(container_model.container_name)
             except Exception as e:
                 logger.error(f"Error cleaning up runtime pool: {e}")
 
-        # Clean up rest container
+        # Clean up remaining containers in mapping
         for key in self.container_mapping.scan(self.prefix):
             try:
                 container_json = self.container_mapping.get(key)
-                if container_json:
-                    container_model = ContainerModel(**container_json)
-                    logger.debug(
-                        f"Destroy container {container_model.container_id}",
-                    )
-                    self.release(container_model.session_id)
-            except Exception as e:
-                logger.error(
-                    f"Error cleaning up container {key}: {e}",
+                if not container_json:
+                    continue
+
+                container_model = ContainerModel(**container_json)
+
+                # Terminal states: already cleaned logically
+                if container_model.state in (
+                    ContainerState.RELEASED,
+                    ContainerState.RECYCLED,
+                ):
+                    continue
+
+                logger.debug(
+                    f"Destroy container {container_model.container_id} "
+                    f"({container_model.container_name})",
                 )
+                self.release(container_model.container_name)
+            except Exception as e:
+                logger.error(f"Error cleaning up container {key}: {e}")
 
     @remote_wrapper_async()
     async def cleanup_async(self, *args, **kwargs):
@@ -499,101 +588,104 @@ class SandboxManager:
 
         queue = self.pool_queues[sandbox_type]
 
-        cnt = 0
-        try:
-            while True:
-                if cnt > self.pool_size:
-                    raise RuntimeError(
-                        "No container available in pool after check the pool.",
-                    )
-                cnt += 1
+        def _bind_meta(container_model: ContainerModel):
+            if not meta:
+                return
 
-                # Add a new one to container
-                container_name = self.create(sandbox_type=sandbox_type)
-                new_container_model = self.container_mapping.get(
-                    container_name,
+            session_ctx_id = meta.get("session_ctx_id")
+
+            container_model.meta = meta
+            container_model.session_ctx_id = session_ctx_id
+            container_model.state = (
+                ContainerState.RUNNING
+                if session_ctx_id
+                else ContainerState.WARM
+            )
+            container_model.recycled_at = None
+            container_model.recycle_reason = None
+            container_model.updated_at = time.time()
+
+            # persist first
+            self.container_mapping.set(
+                container_model.container_name,
+                container_model.model_dump(),
+            )
+
+            # session mapping + first heartbeat only when session_ctx_id exists
+            if session_ctx_id:
+                env_ids = self.session_mapping.get(session_ctx_id) or []
+                if container_model.container_name not in env_ids:
+                    env_ids.append(container_model.container_name)
+
+                self.session_mapping.set(session_ctx_id, env_ids)
+
+                self.clear_container_recycle_marker(
+                    container_model.container_name,
+                    set_state=ContainerState.RUNNING,
                 )
+                self.update_heartbeat(session_ctx_id)
 
-                if new_container_model:
-                    queue.enqueue(
-                        new_container_model,
-                    )
-
-                container_json = queue.dequeue()
-
-                if not container_json:
-                    raise RuntimeError(
-                        "No container available in pool.",
-                    )
-
+        try:
+            # 1) Try dequeue first
+            container_json = queue.dequeue()
+            if container_json:
                 container_model = ContainerModel(**container_json)
 
-                # Add meta field to container
-                if meta and not container_model.meta:
-                    container_model.meta = meta
-                    self.container_mapping.set(
-                        container_model.container_name,
-                        container_model.model_dump(),
-                    )
-                    # Update session mapping
-                    if "session_ctx_id" in meta:
-                        env_ids = (
-                            self.session_mapping.get(
-                                meta["session_ctx_id"],
-                            )
-                            or []
-                        )
-                        if container_model.container_name not in env_ids:
-                            env_ids.append(container_model.container_name)
-                        self.session_mapping.set(
-                            meta["session_ctx_id"],
-                            env_ids,
-                        )
-
-                logger.debug(
-                    f"Retrieved container from pool:"
-                    f" {container_model.session_id}",
-                )
-
+                # version check
                 if (
                     container_model.version
-                    != SandboxRegistry.get_image_by_type(
-                        sandbox_type,
-                    )
+                    != SandboxRegistry.get_image_by_type(sandbox_type)
                 ):
                     logger.warning(
                         f"Container {container_model.session_id} outdated, "
-                        f"trying next one in pool",
+                        "dropping it",
                     )
-                    self.release(container_model.session_id)
-                    continue
-
-                if self.client.inspect(container_model.container_id) is None:
-                    logger.warning(
-                        f"Container {container_model.container_id} not found "
-                        f"or unexpected error happens.",
-                    )
-                    continue
-
-                if (
-                    self.client.get_status(container_model.container_id)
-                    == "running"
-                ):
-                    return container_model.container_name
+                    self.release(container_model.container_name)
+                    container_json = None
                 else:
-                    logger.error(
-                        f"Container {container_model.container_id} is not "
-                        f"running. Trying next one in pool.",
+                    # inspect + status check
+                    if (
+                        self.client.inspect(
+                            container_model.container_id,
+                        )
+                        is None
+                    ):
+                        logger.warning(
+                            f"Container {container_model.container_id} not "
+                            f"found, dropping it",
+                        )
+                        self.release(container_model.container_name)
+                        container_json = None
+                    else:
+                        status = self.client.get_status(
+                            container_model.container_id,
+                        )
+                        if status != "running":
+                            logger.warning(
+                                f"Container {container_model.container_id} "
+                                f"not running ({status}), dropping it",
+                            )
+                            self.release(container_model.container_name)
+                            container_json = None
+
+                # if still valid, bind meta and return
+                if container_json:
+                    _bind_meta(container_model)
+                    logger.debug(
+                        f"Retrieved container from pool:"
+                        f" {container_model.session_id}",
                     )
-                    # Destroy the stopped container
-                    self.release(container_model.session_id)
+                    return container_model.container_name
+
+            # 2) Pool empty or invalid -> create a new one and return
+            return self.create(sandbox_type=sandbox_type.value, meta=meta)
 
         except Exception as e:
             logger.warning(
                 "Error getting container from pool, create a new one.",
             )
             logger.debug(f"{e}: {traceback.format_exc()}")
-            return self.create()
+            return self.create(sandbox_type=sandbox_type.value, meta=meta)
 
     @remote_wrapper_async()
     async def create_from_pool_async(self, *args, **kwargs):
@@ -604,11 +696,44 @@ class SandboxManager:
     def create(
         self,
         sandbox_type=None,
-        mount_dir=None,  # TODO: remove to avoid leaking
+        mount_dir=None,
         storage_path=None,
         environment: Optional[Dict] = None,
         meta: Optional[Dict] = None,
-    ):
+    ):  # pylint: disable=too-many-return-statements
+        # Enforce max sandbox instances
+        try:
+            limit = self.config.max_sandbox_instances
+            if limit > 0:
+                # Count only ACTIVE containers; exclude terminal states
+                active_states = {
+                    ContainerState.WARM,
+                    ContainerState.RUNNING,
+                }
+                current = 0
+                for key in self.container_mapping.scan(self.prefix):
+                    try:
+                        container_json = self.container_mapping.get(key)
+                        if not container_json:
+                            continue
+                        cm = ContainerModel(**container_json)
+                        if cm.state in active_states:
+                            current += 1
+                    except Exception:
+                        # ignore broken records
+                        continue
+        except RuntimeError as e:
+            logger.warning(str(e))
+            return None
+        except Exception:
+            # Handle unexpected errors from container_mapping.scan() gracefully
+            logger.exception("Failed to check sandbox instance limit")
+            return None
+
+        session_ctx_id = None
+        if meta and meta.get("session_ctx_id"):
+            session_ctx_id = meta["session_ctx_id"]
+
         if sandbox_type is not None:
             target_sandbox_type = SandboxType(sandbox_type)
         else:
@@ -641,7 +766,13 @@ class SandboxManager:
         short_uuid = shortuuid.ShortUUID(alphabet=alphabet).uuid()
         session_id = str(short_uuid)
 
-        if not mount_dir:
+        if mount_dir and not self.config.allow_mount_dir:
+            logger.warning(
+                "mount_dir is not allowed by config, fallback to "
+                "default_mount_dir",
+            )
+
+        if (not mount_dir) or (not self.config.allow_mount_dir):
             if self.default_mount_dir:
                 mount_dir = os.path.join(self.default_mount_dir, session_id)
                 os.makedirs(mount_dir, exist_ok=True)
@@ -711,6 +842,7 @@ class SandboxManager:
                 volumes=volume_bindings,
                 environment={
                     "SECRET_TOKEN": runtime_token,
+                    "NGINX_TIMEOUT": TIMEOUT,
                     **environment,
                 },
                 runtime_config=config.runtime_config,
@@ -745,6 +877,12 @@ class SandboxManager:
                 version=image,
                 meta=meta or {},
                 timeout=config.timeout,
+                sandbox_type=target_sandbox_type.value,
+                session_ctx_id=session_ctx_id,
+                state=ContainerState.RUNNING
+                if session_ctx_id
+                else ContainerState.WARM,
+                updated_at=time.time(),
             )
 
             # Register in mapping
@@ -754,15 +892,28 @@ class SandboxManager:
             )
 
             # Build mapping session_ctx_id to container_name
-            if meta and "session_ctx_id" in meta:
-                env_ids = (
-                    self.session_mapping.get(
-                        meta["session_ctx_id"],
-                    )
-                    or []
+            # NOTE:
+            # - Only containers bound to a user session_ctx_id participate
+            #   in heartbeat/reap.
+            # - Prewarmed pool containers typically have no session_ctx_id;
+            #   do NOT write heartbeat for them.
+            if meta and "session_ctx_id" in meta and meta["session_ctx_id"]:
+                session_ctx_id = meta["session_ctx_id"]
+
+                env_ids = self.session_mapping.get(session_ctx_id) or []
+                if container_model.container_name not in env_ids:
+                    env_ids.append(container_model.container_name)
+                self.session_mapping.set(session_ctx_id, env_ids)
+
+                # First heartbeat on creation (treat "allocate to session"
+                # as first activity)
+                self.update_heartbeat(session_ctx_id)
+
+                # Session is now alive again; clear restore-required marker
+                self.clear_container_recycle_marker(
+                    container_model.container_name,
+                    set_state=ContainerState.RUNNING,
                 )
-                env_ids.append(container_model.container_name)
-                self.session_mapping.set(meta["session_ctx_id"], env_ids)
 
             logger.debug(
                 f"Created container {container_name}"
@@ -785,21 +936,25 @@ class SandboxManager:
     @remote_wrapper()
     def release(self, identity):
         try:
-            container_json = self.get_info(identity)
-
-            if not container_json:
-                logger.warning(
-                    f"No container found for {identity}.",
+            container_json = self.container_mapping.get(identity)
+            if container_json is None:
+                container_json = self.container_mapping.get(
+                    self._generate_container_key(identity),
                 )
-                return True
+                if container_json is None:
+                    logger.warning(
+                        f"release: container not found for {identity}, "
+                        f"treat as already released",
+                    )
+                    return True
 
             container_info = ContainerModel(**container_json)
 
-            # remove key in mapping before we remove container
-            self.container_mapping.delete(container_json.get("container_name"))
+            # remove session key in mapping
+            session_ctx_id = container_info.session_ctx_id or (
+                container_info.meta or {}
+            ).get("session_ctx_id")
 
-            # remove key in mapping
-            session_ctx_id = container_info.meta.get("session_ctx_id")
             if session_ctx_id:
                 env_ids = self.session_mapping.get(session_ctx_id) or []
                 env_ids = [
@@ -810,10 +965,44 @@ class SandboxManager:
                 if env_ids:
                     self.session_mapping.set(session_ctx_id, env_ids)
                 else:
+                    # last container of this session is gone;
+                    # keep state consistent
                     self.session_mapping.delete(session_ctx_id)
 
-            self.client.stop(container_info.container_id, timeout=1)
-            self.client.remove(container_info.container_id, force=True)
+            # Mark released (do NOT delete mapping) in model
+            now = time.time()
+            container_info.state = ContainerState.RELEASED
+            container_info.released_at = now
+            container_info.updated_at = now
+            container_info.recycled_at = None
+            container_info.recycle_reason = None
+
+            # Unbind session in model
+            container_info.session_ctx_id = None
+            if container_info.meta is None:
+                container_info.meta = {}
+            container_info.meta.pop("session_ctx_id", None)
+
+            self.container_mapping.set(
+                container_info.container_name,
+                container_info.model_dump(),
+            )
+
+            try:
+                self.client.stop(container_info.container_id, timeout=1)
+            except Exception as e:
+                logger.debug(
+                    f"release stop ignored for"
+                    f" {container_info.container_id}: {e}",
+                )
+
+            try:
+                self.client.remove(container_info.container_id, force=True)
+            except Exception as e:
+                logger.debug(
+                    f"release remove ignored for"
+                    f" {container_info.container_id}: {e}",
+                )
 
             logger.debug(f"Container for {identity} destroyed.")
 
@@ -970,40 +1159,47 @@ class SandboxManager:
         return async_client
 
     @remote_wrapper()
+    @touch_session(identity_arg="identity")
     def check_health(self, identity):
         """List tool"""
         client = self._establish_connection(identity)
         return client.check_health()
 
     @remote_wrapper_async()
+    @touch_session(identity_arg="identity")
     async def check_health_async(self, identity):
         client = await self._establish_connection_async(identity)
         return await client.check_health()
 
     @remote_wrapper()
+    @touch_session(identity_arg="identity")
     def list_tools(self, identity, tool_type=None, **kwargs):
         """List tool"""
         client = self._establish_connection(identity)
         return client.list_tools(tool_type=tool_type, **kwargs)
 
     @remote_wrapper_async()
+    @touch_session(identity_arg="identity")
     async def list_tools_async(self, identity, tool_type=None, **kwargs):
         client = await self._establish_connection_async(identity)
         return await client.list_tools(tool_type=tool_type, **kwargs)
 
     @remote_wrapper()
+    @touch_session(identity_arg="identity")
     def call_tool(self, identity, tool_name=None, arguments=None):
         """Call tool"""
         client = self._establish_connection(identity)
         return client.call_tool(tool_name, arguments)
 
     @remote_wrapper_async()
+    @touch_session(identity_arg="identity")
     async def call_tool_async(self, identity, tool_name=None, arguments=None):
         """Call tool (async)"""
         client = await self._establish_connection_async(identity)
         return await client.call_tool(tool_name, arguments)
 
     @remote_wrapper()
+    @touch_session(identity_arg="identity")
     def add_mcp_servers(self, identity, server_configs, overwrite=False):
         """
         Add MCP servers to runtime.
@@ -1015,6 +1211,7 @@ class SandboxManager:
         )
 
     @remote_wrapper_async()
+    @touch_session(identity_arg="identity")
     async def add_mcp_servers_async(
         self,
         identity,
@@ -1056,3 +1253,393 @@ class SandboxManager:
     async def list_session_keys_async(self, *args, **kwargs):
         """Async wrapper for list_session_keys()."""
         return await asyncio.to_thread(self.list_session_keys, *args, **kwargs)
+
+    def reap_session(
+        self,
+        session_ctx_id: str,
+        reason: str = "heartbeat_timeout",
+    ) -> bool:
+        """
+        Reap (release) ALL containers bound to session_ctx_id.
+
+        Important:
+        - Prewarm pool containers are NOT part of session_mapping
+          (no session_ctx_id), so they won't be reaped by this flow.
+        """
+        try:
+            env_ids = self.get_session_mapping(session_ctx_id) or []
+
+            for container_name in list(env_ids):
+                now = time.time()
+                try:
+                    info = ContainerModel(**self.get_info(container_name))
+
+                    # stop/remove actual container
+                    try:
+                        self.client.stop(info.container_id, timeout=1)
+                    except Exception as e:
+                        logger.debug(
+                            f"Failed to stop container "
+                            f"{info.container_id}: {e}",
+                        )
+                    try:
+                        self.client.remove(info.container_id, force=True)
+                    except Exception as e:
+                        logger.debug(
+                            f"Failed to remove container "
+                            f"{info.container_id}: {e}",
+                        )
+
+                    # upload storage if needed
+                    if info.mount_dir and info.storage_path:
+                        try:
+                            self.storage.upload_folder(
+                                info.mount_dir,
+                                info.storage_path,
+                            )
+                        except Exception as e:
+                            logger.warning(
+                                f"upload_folder failed for {container_name}:"
+                                f" {e}",
+                            )
+
+                    # mark recycled, keep model
+                    info.state = ContainerState.RECYCLED
+                    info.recycled_at = now
+                    info.recycle_reason = reason
+                    info.updated_at = now
+
+                    # keep session_ctx_id for restore
+                    info.session_ctx_id = session_ctx_id
+                    if info.meta is None:
+                        info.meta = {}
+                    info.meta["session_ctx_id"] = session_ctx_id
+
+                    self.container_mapping.set(
+                        info.container_name,
+                        info.model_dump(),
+                    )
+
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to recycle container {container_name} for "
+                        f"session {session_ctx_id}: {e}",
+                    )
+
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to reap session {session_ctx_id}: {e}")
+            logger.debug(traceback.format_exc())
+            return False
+
+    def restore_session(self, session_ctx_id: str) -> None:
+        """
+        Restore ALL recycled sandboxes (containers) for a session.
+
+        For each container record with state==RECYCLED in session_mapping[
+        session_ctx_id]:
+        - If mount_dir is empty -> allocate from pool
+            (prefer same sandbox_type).
+        - If mount_dir exists -> create a new container with that
+            mount_dir/storage_path.
+        - Bind new container to this session and mark RUNNING.
+        - Archive the old recycled record (mark RELEASED).
+
+        After restore:
+        - session_mapping[session_ctx_id] will be replaced with the list of
+            NEW running containers.
+        """
+        env_ids = self.get_session_mapping(session_ctx_id) or []
+        if not env_ids:
+            return
+
+        new_container_names: list[str] = []
+        recycled_old_names: list[str] = []
+
+        # 1) restore each recycled container
+        for old_name in list(env_ids):
+            try:
+                old = ContainerModel(**self.get_info(old_name))
+            except Exception:
+                continue
+
+            if old.state != ContainerState.RECYCLED:
+                # keep non-recycled entries as-is (optional). In practice
+                # env_ids should be recycled only.
+                continue
+
+            sandbox_type = old.sandbox_type or self.default_type[0].value
+            meta = {
+                "session_ctx_id": session_ctx_id,
+            }
+
+            # allocate new container
+            if not old.mount_dir:
+                new_name = self.create_from_pool(
+                    sandbox_type=sandbox_type,
+                    meta=meta,
+                )
+            else:
+                new_name = self.create(
+                    sandbox_type=sandbox_type,
+                    meta=meta,
+                    mount_dir=old.mount_dir,
+                    storage_path=old.storage_path,
+                )
+
+            if not new_name:
+                logger.warning(
+                    f"restore_session: failed to restore container {old_name} "
+                    f"for session {session_ctx_id}",
+                )
+                continue
+
+            recycled_old_names.append(old_name)
+            new_container_names.append(new_name)
+
+            # ensure new container is marked RUNNING + bound
+            try:
+                new_cm = ContainerModel(**self.get_info(new_name))
+                now = time.time()
+                new_cm.state = ContainerState.RUNNING
+                new_cm.session_ctx_id = session_ctx_id
+                if new_cm.meta is None:
+                    new_cm.meta = {}
+                new_cm.meta["session_ctx_id"] = session_ctx_id
+                new_cm.meta["sandbox_type"] = sandbox_type
+                new_cm.recycled_at = None
+                new_cm.recycle_reason = None
+                new_cm.updated_at = now
+                self.container_mapping.set(
+                    new_cm.container_name,
+                    new_cm.model_dump(),
+                )
+            except Exception as e:
+                logger.warning(
+                    f"restore_session: failed to mark new container running:"
+                    f" {e}",
+                )
+
+        if not new_container_names:
+            # nothing restored
+            return
+
+        # 2) switch session mapping to restored running containers
+        self.session_mapping.set(session_ctx_id, new_container_names)
+
+        # 3) heartbeat after restore (session-level)
+        self.update_heartbeat(session_ctx_id)
+
+        # 4) archive old recycled records so needs_restore becomes False
+        for old_name in recycled_old_names:
+            try:
+                self.container_mapping.delete(old_name)
+            except Exception as e:
+                logger.warning(
+                    f"restore_session: failed to delete old model"
+                    f" {old_name}: {e}",
+                )
+
+    def scan_heartbeat_once(self) -> dict:
+        """
+        Scan all session_ctx_id in session_mapping and reap those idle
+        beyond timeout. Uses redis distributed lock to avoid multi-instance
+        double reap.
+        """
+        timeout = int(self.config.heartbeat_timeout)
+
+        result = {
+            "scanned_sessions": 0,
+            "reaped_sessions": 0,
+            "skipped_no_heartbeat": 0,
+            "skipped_no_running_containers": 0,
+            "skipped_lock_busy": 0,
+            "skipped_not_idle_after_double_check": 0,
+            "errors": 0,
+        }
+
+        for session_ctx_id in list(self.session_mapping.scan()):
+            result["scanned_sessions"] += 1
+
+            has_running = False
+            try:
+                env_ids = self.get_session_mapping(session_ctx_id) or []
+                for cname in list(env_ids):
+                    try:
+                        cm = ContainerModel(**self.get_info(cname))
+                    except Exception:
+                        continue
+                    if cm.state == ContainerState.RUNNING:
+                        has_running = True
+                        break
+            except Exception:
+                has_running = False
+
+            if not has_running:
+                result["skipped_no_running_containers"] += 1
+                continue
+
+            last_active = self.get_heartbeat(session_ctx_id)
+            if last_active is None:
+                result["skipped_no_heartbeat"] += 1
+                continue
+
+            # Use time.time() consistently to avoid subtle timing skew if
+            # the scan loop itself takes a while under load.
+            if time.time() - last_active <= timeout:
+                continue
+
+            token = self.acquire_heartbeat_lock(session_ctx_id)
+            if not token:
+                result["skipped_lock_busy"] += 1
+                continue
+
+            try:
+                # double-check after lock (avoid racing with a fresh heartbeat)
+                last_active2 = self.get_heartbeat(session_ctx_id)
+                if last_active2 is None:
+                    result["skipped_no_heartbeat"] += 1
+                    continue
+
+                if time.time() - last_active2 <= timeout:
+                    result["skipped_not_idle_after_double_check"] += 1
+                    continue
+
+                ok = self.reap_session(
+                    session_ctx_id,
+                    reason="heartbeat_timeout",
+                )
+                if ok:
+                    result["reaped_sessions"] += 1
+
+            except Exception:
+                result["errors"] += 1
+                logger.warning(
+                    f"scan_heartbeat_once error on session {session_ctx_id}",
+                )
+                logger.debug(traceback.format_exc())
+            finally:
+                self.release_heartbeat_lock(session_ctx_id, token)
+
+        return result
+
+    def scan_pool_once(self) -> dict:
+        """
+        Replenish warm pool for each sandbox_type up to pool_size.
+
+        Note:
+        - No distributed lock by design (multi-instance may overfill slightly).
+        - Pool containers are WARM (no session_ctx_id).
+        """
+        result = {
+            "types": 0,
+            "created": 0,
+            "enqueued": 0,
+            "failed_create": 0,
+            "skipped_pool_disabled": 0,
+        }
+
+        if self.pool_size <= 0:
+            result["skipped_pool_disabled"] = 1
+            return result
+
+        for t in self.default_type:
+            result["types"] += 1
+            queue = self.pool_queues.get(t)
+            if queue is None:
+                continue
+
+            try:
+                need = int(self.pool_size - queue.size())
+            except Exception:
+                # if queue.size() fails for any reason, skip this type
+                continue
+
+            if need <= 0:
+                continue
+
+            for _ in range(need):
+                try:
+                    # create a WARM container (no session_ctx_id)
+                    container_name = self.create(
+                        sandbox_type=t.value,
+                        meta=None,
+                    )
+                    if not container_name:
+                        result["failed_create"] += 1
+                        continue
+
+                    cm_json = self.container_mapping.get(container_name)
+                    if not cm_json:
+                        result["failed_create"] += 1
+                        continue
+
+                    queue.enqueue(cm_json)
+                    result["created"] += 1
+                    result["enqueued"] += 1
+                except Exception:
+                    result["failed_create"] += 1
+                    logger.debug(traceback.format_exc())
+
+        return result
+
+    def scan_released_cleanup_once(self, max_delete: int = 200) -> dict:
+        """
+        Delete container_mapping records whose state == RELEASED and expired.
+
+        TTL is config.released_key_ttl seconds. 0 disables cleanup.
+        """
+        ttl = int(getattr(self.config, "released_key_ttl", 0))
+        result = {
+            "ttl": ttl,
+            "scanned": 0,
+            "deleted": 0,
+            "skipped_ttl_disabled": 0,
+            "skipped_not_expired": 0,
+            "skipped_not_released": 0,
+            "errors": 0,
+        }
+
+        if ttl <= 0:
+            result["skipped_ttl_disabled"] = 1
+            return result
+
+        now = time.time()
+
+        for key in self.container_mapping.scan(self.prefix):
+            if result["deleted"] >= max_delete:
+                break
+
+            result["scanned"] += 1
+            try:
+                container_json = self.container_mapping.get(key)
+                if not container_json:
+                    continue
+
+                cm = ContainerModel(**container_json)
+
+                if cm.state != ContainerState.RELEASED:
+                    result["skipped_not_released"] += 1
+                    continue
+
+                released_at = cm.released_at or cm.updated_at or 0
+                if released_at <= 0:
+                    # no timestamp -> treat as not expired
+                    result["skipped_not_expired"] += 1
+                    continue
+
+                if now - released_at <= ttl:
+                    result["skipped_not_expired"] += 1
+                    continue
+
+                self.container_mapping.delete(cm.container_name)
+                result["deleted"] += 1
+
+            except Exception as e:
+                result["errors"] += 1
+                logger.debug(
+                    f"scan_released_cleanup_once: {e},"
+                    f" {traceback.format_exc()}",
+                )
+
+        return result

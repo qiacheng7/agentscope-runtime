@@ -20,7 +20,7 @@ class SandboxManagerEnvConfig(BaseModel):
         description="Type of file system to use: 'local' or 'oss'.",
     )
     storage_folder: Optional[str] = Field(
-        "",
+        None,
         description="Folder path in storage.",
     )
     redis_enabled: bool = Field(
@@ -34,6 +34,7 @@ class SandboxManagerEnvConfig(BaseModel):
         "agentrun",
         "fc",
         "gvisor",
+        "boxlite",
     ] = Field(
         "docker",
         description="Container deployment backend: 'docker', 'cloud', 'k8s'"
@@ -52,6 +53,15 @@ class SandboxManagerEnvConfig(BaseModel):
         "'/etc/timezone' }",
     )
 
+    allow_mount_dir: bool = Field(
+        default=False,
+        description=(
+            "Whether to allow passing `mount_dir`. "
+            "Disable by default to prevent mounting server-local paths when "
+            "running as a manager service."
+        ),
+    )
+
     port_range: Tuple[int, int] = Field(
         (49152, 59152),
         description="Range of ports to be used by the manager.",
@@ -68,16 +78,16 @@ class SandboxManagerEnvConfig(BaseModel):
         description="OSS endpoint URL. Required if file_system is 'oss'.",
     )
     oss_access_key_id: Optional[str] = Field(
-        None,
+        "your-access-key-id",
         description="Access key ID for OSS. Required if file_system is 'oss'.",
     )
     oss_access_key_secret: Optional[str] = Field(
-        None,
+        "your-access-key-secret",
         description="Access key secret for OSS. Required if file_system is "
         "'oss'.",
     )
     oss_bucket_name: Optional[str] = Field(
-        None,
+        "your-bucket-name",
         description="Bucket name in OSS. Required if file_system is 'oss'.",
     )
 
@@ -236,6 +246,41 @@ class SandboxManagerEnvConfig(BaseModel):
     fc_log_store: Optional[str] = Field(
         None,
         description="Log store for FC.",
+    )
+
+    # Heartbeat related
+    heartbeat_timeout: int = Field(
+        default=300,
+        description="Idle timeout in seconds before session is reaped.",
+        gt=0,
+    )
+    heartbeat_lock_ttl: int = Field(
+        default=120,
+        description="Redis distributed lock TTL in seconds for reaping.",
+        gt=0,
+    )
+    watcher_scan_interval: int = Field(
+        default=1,
+        description=(
+            "Background watcher loop interval in seconds. "
+            "0 disables watcher. Watcher includes heartbeat scan, pool "
+            "replenish, and released-record cleanup."
+        ),
+        ge=0,
+    )
+    released_key_ttl: int = Field(
+        default=3600,
+        description=(
+            "TTL in seconds for keeping RELEASED container records in "
+            "container_mapping. 0 disables cleanup."
+        ),
+        ge=0,
+    )
+    max_sandbox_instances: int = Field(
+        default=0,
+        description="Maximum number of sandbox instances allowed. "
+        "0 means unlimited.",
+        ge=0,
     )
 
     @model_validator(mode="after")

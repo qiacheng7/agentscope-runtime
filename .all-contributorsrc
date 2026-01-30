@@ -313,6 +313,35 @@
         "doc",
         "example"
       ]
+    },
+    {
+      "login": "DorianZheng",
+      "name": "dorianzheng",
+      "avatar_url": "https://avatars.githubusercontent.com/u/8065637?v=4",
+      "profile": "http://dorianzheng.github.io",
+      "contributions": [
+        "review",
+        "platform"
+      ]
+    },
+    {
+      "login": "cainiao1992",
+      "name": "Xiangfang Chen",
+      "avatar_url": "https://avatars.githubusercontent.com/u/18435004?v=4",
+      "profile": "https://github.com/cainiao1992",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "Eggiverse",
+      "name": "Zhang Shitian",
+      "avatar_url": "https://avatars.githubusercontent.com/u/36877740?v=4",
+      "profile": "https://github.com/Eggiverse",
+      "contributions": [
+        "bug",
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

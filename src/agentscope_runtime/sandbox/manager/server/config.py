@@ -20,7 +20,7 @@ class Settings(BaseSettings):
 
     # Runtime Manager settings
     DEFAULT_SANDBOX_TYPE: Union[str, List[str]] = "base"
-    POOL_SIZE: int = 1
+    POOL_SIZE: int = 0
     AUTO_CLEANUP: bool = True
     CONTAINER_PREFIX_KEY: str = "runtime_sandbox_container_"
     CONTAINER_DEPLOYMENT: Literal[
@@ -30,6 +30,7 @@ class Settings(BaseSettings):
         "agentrun",
         "fc",
         "gvisor",
+        "boxlite",
     ] = "docker"
     DEFAULT_MOUNT_DIR: str = "sessions_mount_dir"
     # Read-only mounts (host_path -> container_path)
@@ -37,7 +38,8 @@ class Settings(BaseSettings):
     # READONLY_MOUNTS={"\/opt\/shared": "\/mnt\/shared", "\/etc\/timezone":
     # "\/etc\/timezone"}
     READONLY_MOUNTS: Optional[Dict[str, str]] = None
-    STORAGE_FOLDER: str = "runtime_sandbox_storage"
+    ALLOW_MOUNT_DIR: Optional[bool] = False
+    STORAGE_FOLDER: Optional[str] = None
     PORT_RANGE: Tuple[int, int] = (49152, 59152)
 
     # Redis settings
@@ -97,8 +99,15 @@ class Settings(BaseSettings):
     FC_LOG_PROJECT: Optional[str] = None
     FC_LOG_STORE: Optional[str] = None
 
+    # Heartbeat related
+    HEARTBEAT_TIMEOUT: int = 300
+    HEARTBEAT_LOCK_TTL: int = 120
+    WATCHER_SCAN_INTERVAL: int = 1  # 0 to disable watcher
+    RELEASE_KET_TTL: int = 3600
+
+    MAX_SANDBOX_INSTANCES: int = 0  # 0 means unlimited
+
     model_config = ConfigDict(
-        case_sensitive=True,
         extra="allow",
     )
 

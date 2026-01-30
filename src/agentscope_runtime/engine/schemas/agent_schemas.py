@@ -49,6 +49,7 @@ class ContentType:
     AUDIO = "audio"
     FILE = "file"
     REFUSAL = "refusal"
+    VIDEO = "video"
 
 
 class Role:
@@ -231,6 +232,24 @@ class McpApprovalRequest(BaseModel):
     """The label of the mcp server making the request."""
 
 
+class McpApprovalResponse(BaseModel):
+    """
+    mcp approval response
+    """
+
+    approval_request_id: str
+    """The unique ID of the approval request."""
+
+    approve: bool
+    """Whether the request was approved."""
+
+    id: Optional[str] = None
+    """The unique ID of the approval response."""
+
+    reason: Optional[str] = None
+    """Optional reason for the decision."""
+
+
 class Error(BaseModel):
     code: str
     """The error code of the message."""
@@ -381,6 +400,14 @@ class AudioContent(Content):
     """
     The format of the audio data.
     """
+
+
+class VideoContent(Content):
+    type: Literal[ContentType.VIDEO] = ContentType.VIDEO
+    """The type of the content part."""
+
+    video_url: Optional[str] = None
+    """The video URL details."""
 
 
 class FileContent(Content):
@@ -622,15 +649,17 @@ class Message(Event):
 
         # new content
         if new_content.index is None:
+            content_index = len(self.content)
             copy = deepcopy(new_content)
             copy.delta = None
-            copy.index = None
-            copy.msg_id = None
+            copy.index = content_index
+            copy.msg_id = self.id
             self.content.append(copy)
 
-            new_content.index = len(self.content) - 1
+            new_content.index = content_index
             new_content.msg_id = self.id
             new_content.in_progress()
+
             return new_content
 
         # delta content

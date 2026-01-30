@@ -16,6 +16,7 @@ from ...engine.schemas.agent_schemas import (
     TextContent,
     ImageContent,
     AudioContent,
+    VideoContent,
     DataContent,
     McpCall,
     McpCallOutput,
@@ -271,7 +272,7 @@ async def adapt_agentscope_message_stream(
                                 role="assistant",
                             )
                             data_delta_content = DataContent(
-                                index=0,
+                                index=None if last else 0,
                                 data=fc_cls(
                                     call_id=element["id"],
                                     name=element.get("name"),
@@ -446,7 +447,12 @@ async def adapt_agentscope_message_stream(
                                 == "url"
                             ):
                                 kwargs.update(
-                                    {"image_url": element.get("source")},
+                                    {
+                                        "image_url": element.get(
+                                            "source",
+                                            {},
+                                        ).get("url"),
+                                    },
                                 )
 
                             elif (
@@ -511,6 +517,46 @@ async def adapt_agentscope_message_stream(
                                     {"format": media_type, "data": url},
                                 )
                             delta_content = AudioContent(
+                                delta=True,
+                                index=index,
+                                **kwargs,
+                            )
+                        elif element.get("type") == "video":
+                            kwargs = {}
+                            if (
+                                isinstance(element.get("source"), dict)
+                                and element.get("source", {}).get(
+                                    "type",
+                                )
+                                == "url"
+                            ):
+                                kwargs.update(
+                                    {
+                                        "video_url": element.get(
+                                            "source",
+                                            {},
+                                        ).get("url"),
+                                    },
+                                )
+
+                            elif (
+                                isinstance(element.get("source"), dict)
+                                and element.get("source").get(
+                                    "type",
+                                )
+                                == "base64"
+                            ):
+                                media_type = element.get("source", {}).get(
+                                    "media_type",
+                                    "video/mp4",
+                                )
+                                base64_data = element.get("source", {}).get(
+                                    "data",
+                                    "",
+                                )
+                                url = f"data:{media_type};base64,{base64_data}"
+                                kwargs.update({"video_url": url})
+                            delta_content = VideoContent(
                                 delta=True,
                                 index=index,
                                 **kwargs,

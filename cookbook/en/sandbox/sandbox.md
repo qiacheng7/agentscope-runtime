@@ -19,7 +19,7 @@ AgentScope Runtime's Sandbox is a versatile tool that provides a **secure** and 
 ## Prerequisites
 
 ```{note}
-The current sandbox environment utilises Docker for default isolation. In addition, we offer support for Kubernetes (K8S) as a remote service backend. Looking ahead, we plan to incorporate more third-party hosting solutions in future releases.
+The current sandbox supports multiple backend isolation/runtime options. For local usage, you can use Docker (optionally with gVisor) or [BoxLite](https://github.com/boxlite-ai/boxlite). For large-scale remote/production deployments, we recommend Kubernetes (K8s), Function Compute (FC), or [Alibaba Cloud ACK](https://computenest.console.aliyun.com/service/instance/create/default?ServiceName=AgentScope%20Runtime%20%E6%B2%99%E7%AE%B1%E7%8E%AF%E5%A2%83). You can also switch the backend by setting the `CONTAINER_DEPLOYMENT` environment variable (default: `docker`).
 ```
 
 
@@ -29,8 +29,8 @@ For **Apple Silicon devices** (such as M1/M2), we recommend the following option
 * Colima: Ensure that Rosetta 2 support is enabled. You can start [Colima](https://github.com/abiosoft/colima) with the following command to achieve compatibility: `colima start --vm-type=vz --vz-rosetta --memory 8 --cpu 1`
 ````
 
-- Docker
-- (Optional,  remote mode only) Kubernetes
+- Docker (optionally with gVisor) or [BoxLite](https://github.com/boxlite-ai/boxlite) (local)
+- (Optional,  remote/production, choose as needed) Kubernetes (K8s) / Function Compute (FC) / [Alibaba Cloud ACK](https://computenest.console.aliyun.com/service/instance/create/cn-hangzhou?ServiceName=AgentScope%20Runtime%20%E6%B2%99%E7%AE%B1%E7%8E%AF%E5%A2%83)
 
 ## Setup
 
@@ -92,11 +92,12 @@ You can verify that everything is set up correctly by calling `run_ipython_cell`
 
 ```{code-cell}
 import json
-from agentscope_runtime.sandbox.tools.base import run_ipython_cell
+from agentscope_runtime.sandbox import BaseSandbox
 
-# Model Context Protocol (MCP)-compatible tool call results
-result = run_ipython_cell(code="print('Setup successful!')")
-print(json.dumps(result, indent=4, ensure_ascii=False))
+with BaseSandbox() as sandbox:
+    # Model Context Protocol (MCP)-compatible tool call results
+    result = sandbox.run_ipython_cell(code="print('Setup successful!')")
+    print(json.dumps(result, indent=4, ensure_ascii=False))
 ```
 
 ### (Optional) Built the Docker Images from Scratch
@@ -140,7 +141,7 @@ from agentscope_runtime.sandbox import BaseSandboxAsync
 
 async with BaseSandboxAsync() as box:
     # Default image is `agentscope/runtime-sandbox-base:latest`
-    print(await box.list_tools())  # List all available tools
+    print(await box.list_tools_async())  # List all available tools
     print(await box.run_ipython_cell(code="print('hi')"))  # Run Python code
     print(await box.run_shell_command(command="echo hello"))  # Run shell command
     input("Press Enter to continue...")
@@ -167,7 +168,7 @@ from agentscope_runtime.sandbox import GuiSandboxAsync
 
 async with GuiSandboxAsync() as box:
     # Default image is `agentscope/runtime-sandbox-gui:latest`
-    print(await box.list_tools())  # List all available tools
+    print(await box.list_tools_async())  # List all available tools
     print(box.desktop_url)  # Web desktop access URL
     print(await box.computer_use(action="get_cursor_position"))  # Get mouse cursor position
     print(await box.computer_use(action="get_screenshot"))  # Capture screenshot
@@ -194,7 +195,7 @@ from agentscope_runtime.sandbox import FilesystemSandboxAsync
 
 async with FilesystemSandboxAsync() as box:
     # Default image is `agentscope/runtime-sandbox-filesystem:latest`
-    print(await box.list_tools())  # List all available tools
+    print(await box.list_tools_async())  # List all available tools
     print(box.desktop_url)  # Web desktop access URL
     await box.create_directory("test")  # Create a directory
     input("Press Enter to continue...")
@@ -220,7 +221,7 @@ from agentscope_runtime.sandbox import BrowserSandboxAsync
 
 async with BrowserSandboxAsync() as box:
     # Default image is `agentscope/runtime-sandbox-browser:latest`
-    print(await box.list_tools())  # List all available tools
+    print(await box.list_tools_async())  # List all available tools
     print(box.desktop_url)  # Web desktop access URL
     await box.browser_navigate("https://www.google.com/")  # Open a webpage
     input("Press Enter to continue...")
@@ -267,7 +268,7 @@ from agentscope_runtime.sandbox import MobileSandboxAsync
 
 async with MobileSandboxAsync() as box:
     # Default image is 'agentscope/runtime-sandbox-mobile:latest'
-    print(await box.list_tools())  # List all available tools
+    print(await box.list_tools_async())  # List all available tools
     print(await box.mobile_get_screen_resolution())  # Get the screen resolution
     print(await box.mobile_tap([500, 1000]))  # Tap at coordinate (500, 1000)
     print(await box.mobile_input_text("Hello from AgentScope!"))  # Input text
